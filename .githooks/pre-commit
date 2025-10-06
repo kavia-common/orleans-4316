@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Git pre-commit hook for Orleans
+# This hook runs cross-platform pre-commit checks
+
+# Detect the operating system and call the appropriate script
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
+    # Windows - use PowerShell script
+    pwsh -File "$(git rev-parse --show-toplevel)/scripts/tools/precommit.ps1"
+else
+    # Linux/macOS - use bash script
+    bash "$(git rev-parse --show-toplevel)/scripts/tools/precommit.sh"
+fi
+
+exit $?

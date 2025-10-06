@@ -514,6 +514,66 @@ The workflow uses the .NET SDK version specified in `global.json` (currently .NE
 
 The workflow is configured with `fail-fast: true`, which means that if a build fails on any platform, all other running jobs will be cancelled immediately. This saves CI resources and provides faster feedback on failures.
 
+## Pre-Commit Hooks
+
+This project includes optional pre-commit hooks that run the same quality checks as CI before allowing commits. This helps catch issues early and ensures all commits meet the project's quality standards.
+
+### What the Pre-Commit Hook Does
+
+The hook performs three checks before each commit:
+
+1. **Code Formatting**: Verifies code follows formatting standards (`dotnet format --verify-no-changes`)
+2. **Build**: Compiles the solution in Release configuration (`dotnet build -c Release`)
+3. **Tests with Coverage**: Runs all tests and collects code coverage (`dotnet test -c Release --collect:"XPlat Code Coverage"`)
+
+If any check fails, the commit is blocked, and you'll see a clear error message indicating what needs to be fixed.
+
+### Installing Pre-Commit Hooks
+
+To enable pre-commit hooks in your local repository:
+
+**On Windows (PowerShell):**
+```powershell
+.\scripts\tools\setup-hooks.ps1
+```
+
+**On Linux/macOS (Bash):**
+```bash
+bash scripts/tools/setup-hooks.sh
+```
+
+This configures Git to use the custom hooks in the `.githooks` directory.
+
+### Running Pre-Commit Checks Manually
+
+You can run the pre-commit checks manually at any time without making a commit:
+
+**On Windows (PowerShell):**
+```powershell
+.\scripts\tools\precommit.ps1
+```
+
+**On Linux/macOS (Bash):**
+```bash
+bash scripts/tools/precommit.sh
+```
+
+### Bypassing Pre-Commit Hooks
+
+If you need to commit without running the checks (not recommended for regular use):
+
+```bash
+git commit --no-verify
+```
+
+### Uninstalling Pre-Commit Hooks
+
+To disable the pre-commit hooks:
+
+```bash
+git config --unset core.hooksPath
+```
+
 ## Community
 
 [![Discord](https://discordapp.com/api/guilds/333727978460676096/widget.png?style=banner4)](https://aka.ms/orleans-discord)
