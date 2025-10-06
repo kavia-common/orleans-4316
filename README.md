@@ -460,6 +460,60 @@ or
 
 </details>
 
+## Continuous Integration
+
+This project uses GitHub Actions for continuous integration. The CI workflow runs on every push and pull request to the main/master branches.
+
+### CI Workflow
+
+The CI pipeline performs the following steps on both Ubuntu and Windows:
+
+1. **Restore Dependencies**: Downloads and caches NuGet packages
+2. **Format Verification**: Ensures code follows formatting standards (`dotnet format --verify-no-changes`)
+3. **Build**: Compiles the solution in Release configuration
+4. **Test with Coverage**: Runs all tests and collects code coverage data using coverlet
+5. **Upload Artifacts**: Publishes test results and coverage reports
+
+### Running CI Steps Locally
+
+To run the same checks locally before pushing code:
+
+```bash
+# Restore dependencies
+dotnet restore
+
+# Verify code formatting (fix issues automatically)
+dotnet format
+
+# Build in Release mode
+dotnet build -c Release
+
+# Run tests with code coverage
+dotnet test -c Release --collect:"XPlat Code Coverage"
+```
+
+To verify formatting without making changes (same as CI):
+
+```bash
+dotnet format --verify-no-changes
+```
+
+### Coverage Reports
+
+Code coverage reports are collected using the `coverlet.collector` package and uploaded as artifacts. Coverage data is generated in Cobertura XML format and can be viewed by downloading the artifacts from the GitHub Actions workflow runs.
+
+### Build Matrix
+
+The CI workflow runs on multiple platforms to ensure cross-platform compatibility:
+- **Ubuntu Latest**: Tests on Linux environment
+- **Windows Latest**: Tests on Windows environment
+
+The workflow uses the .NET SDK version specified in `global.json` (currently .NET 8.0.120).
+
+### Fail-Fast Strategy
+
+The workflow is configured with `fail-fast: true`, which means that if a build fails on any platform, all other running jobs will be cancelled immediately. This saves CI resources and provides faster feedback on failures.
+
 ## Community
 
 [![Discord](https://discordapp.com/api/guilds/333727978460676096/widget.png?style=banner4)](https://aka.ms/orleans-discord)
