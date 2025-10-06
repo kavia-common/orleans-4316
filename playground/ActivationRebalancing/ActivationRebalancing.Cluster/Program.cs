@@ -1,8 +1,13 @@
+using System.Diagnostics;
+using System.Reflection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
 using Orleans.Configuration;
 using Orleans.Runtime;
 
@@ -11,6 +16,75 @@ var builder = Host.CreateApplicationBuilder(args);
 // Ensure Kestrel binds to container network interface for health/dashboard if ASPNETCORE_URLS is not honored elsewhere.
 var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "http://0.0.0.0:8080";
 builder.WebHost.UseUrls(urls);
+
+// Configure OpenTelemetry
+var assemblyName = Assembly.GetExecutingAssembly().GetName();
+var serviceName = Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? assemblyName.Name ?? "Orleans.Silo";
+var serviceVersion = assemblyName.Version?.ToString() ?? "1.0.0";
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource
+        .AddService(serviceName: serviceName, serviceVersion: serviceVersion)
+        .AddAttributes(new Dictionary<string, object>
+        {
+            ["deployment.environment"] = builder.Environment.EnvironmentName,
+            ["host.name"] = Environment.MachineName
+        }))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation(options =>
+            {
+                options.RecordException = true;
+            })
+            .AddHttpClientInstrumentation(options =>
+            {
+                options.RecordException = true;
+            })
+            .AddSource("Orleans.Grains") // Custom ActivitySource for grain operations
+            .AddConsoleExporter(); // Always enable console exporter
+
+        // Add OTLP exporter if endpoint is configured
+        var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            tracing.AddOtlpExporter(options =>
+            {
+                options.Endpoint = new Uri(otlpEndpoint);
+                
+                // Optional: Add headers if configured
+                var otlpHeaders = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_HEADERS");
+                if (!string.IsNullOrWhiteSpace(otlpHeaders))
+                {
+                    foreach (var header in otlpHeaders.Split(','))
+                    {
+                        var parts = header.Split('=', 2);
+                        if (parts.Length == 2)
+                        {
+                            options.Headers += $"{parts[0].Trim()}={parts[1].Trim()},";
+                        }
+                    }
+                }
+            });
+        }
+    })
+    .WithMetrics(metrics =>
+    {
+        metrics
+            .AddAspNetCoreInstrumentation()
+            .AddRuntimeInstrumentation()
+            .AddConsoleExporter(); // Always enable console exporter
+
+        // Add OTLP exporter if endpoint is configured
+        var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            metrics.AddOtlpExporter(options =>
+            {
+                options.Endpoint = new Uri(otlpEndpoint);
+            });
+        }
+    });
 
 builder.AddKeyedRedisClient("orleans-redis");
 builder.Logging.AddFilter("Orleans.Runtime.Placement.Rebalancing", LogLevel.Trace);
@@ -100,13 +174,33 @@ internal class OrleansHealthCheck : IHealthCheck
 
 internal class LoadDriverBackgroundService(IGrainFactory client) : BackgroundService
 {
+    // ActivitySource for custom tracing in grain operations
+    private static readonly ActivitySource ActivitySource = new("Orleans.Grains");
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            for (var i = 0; i < 5 * Random.Shared.Next(1, 1000); i++)
+            // Example: Create a custom Activity to trace grain operations
+            using var activity = ActivitySource.StartActivity("LoadDriver.GenerateLoad", ActivityKind.Internal);
+            
+            var grainCount = 5 * Random.Shared.Next(1, 1000);
+            activity?.SetTag("grain.count", grainCount);
+            
+            try
             {
-                await client.GetGrain<IRebalancingTestGrain>(Guid.NewGuid()).Ping();
+                for (var i = 0; i < grainCount; i++)
+                {
+                    await client.GetGrain<IRebalancingTestGrain>(Guid.NewGuid()).Ping();
+                }
+                
+                activity?.SetStatus(ActivityStatusCode.Ok);
+            }
+            catch (Exception ex)
+            {
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                activity?.RecordException(ex);
+                throw;
             }
 
             await Task.Delay(Random.Shared.Next(500, 1_000), stoppingToken);
@@ -122,5 +216,17 @@ public interface IRebalancingTestGrain : IGrainWithGuidKey
 [CollectionAgeLimit(Minutes = 0.5)]
 public class RebalancingTestGrain : Grain, IRebalancingTestGrain
 {
-    public Task Ping() => Task.CompletedTask;
+    // ActivitySource for tracing grain method calls
+    private static readonly ActivitySource ActivitySource = new("Orleans.Grains");
+
+    public Task Ping()
+    {
+        // Example: Create a span for grain method execution
+        using var activity = ActivitySource.StartActivity("RebalancingTestGrain.Ping", ActivityKind.Server);
+        activity?.SetTag("grain.type", nameof(RebalancingTestGrain));
+        activity?.SetTag("grain.key", this.GetPrimaryKey().ToString());
+        
+        // Simulate some work
+        return Task.CompletedTask;
+    }
 }

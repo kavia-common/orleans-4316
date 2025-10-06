@@ -279,6 +279,152 @@ spec:
 - Failed readiness checks prevent traffic routing to the silo until it's fully joined the cluster
 - Failed liveness checks trigger container restarts in orchestration platforms
 
+### Observability with OpenTelemetry
+
+Orleans hosts are integrated with OpenTelemetry for distributed tracing and metrics collection. This enables comprehensive observability across your Orleans cluster.
+
+**Features:**
+- **Distributed Tracing**: Trace requests across ASP.NET Core endpoints, HTTP clients, and grain operations
+- **Runtime Metrics**: Monitor .NET runtime metrics (GC, thread pool, exceptions, etc.)
+- **ASP.NET Core Metrics**: Track HTTP request metrics, response times, and throughput
+- **Custom Grain Tracing**: Example implementation of Activity propagation across grain calls
+
+**Exporters:**
+- **Console Exporter**: Always enabled for local development and debugging
+- **OTLP Exporter**: Conditionally enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is configured
+
+**Configuration:**
+
+OpenTelemetry is configured via environment variables. See `.env.example` for all available options:
+
+```bash
+# Enable OTLP exporter (optional - console exporter is always active)
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+
+# Optional: Add authentication headers
+OTEL_EXPORTER_OTLP_HEADERS=x-api-key=your-api-key
+
+# Optional: Override service name
+OTEL_SERVICE_NAME=Orleans.MySilo
+```
+
+**Running with Console Exporter (Default):**
+
+The console exporter is always enabled. Simply run the silo and traces/metrics will be logged to the console:
+
+```bash
+cd playground/ActivationRebalancing/ActivationRebalancing.Cluster
+dotnet run
+```
+
+You'll see trace and metric data in the console output.
+
+**Running with OpenTelemetry Collector:**
+
+1. Start an OpenTelemetry Collector:
+
+```bash
+docker run -d --name otel-collector \
+  -p 4317:4317 \
+  -p 4318:4318 \
+  otel/opentelemetry-collector:latest
+```
+
+2. Configure the Orleans silo to use the collector:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+dotnet run
+```
+
+**Running with Jaeger (All-in-One):**
+
+1. Start Jaeger with OTLP support:
+
+```bash
+docker run -d --name jaeger \
+  -e COLLECTOR_OTLP_ENABLED=true \
+  -p 16686:16686 \
+  -p 4317:4317 \
+  -p 4318:4318 \
+  jaegertracing/all-in-one:latest
+```
+
+2. Configure the Orleans silo:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+dotnet run
+```
+
+3. View traces in Jaeger UI:
+   - Open http://localhost:16686
+   - Select the service name from the dropdown
+   - Click "Find Traces"
+
+**Docker Compose Integration:**
+
+Add OpenTelemetry configuration to your docker-compose.yml:
+
+```yaml
+services:
+  orleans-silo:
+    build: .
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=Orleans.Silo
+    depends_on:
+      - otel-collector
+
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+```
+
+**Custom Grain Tracing Example:**
+
+The ActivationRebalancing.Cluster sample includes example Activity propagation in grain calls:
+
+```csharp
+// Define an ActivitySource for your grains
+private static readonly ActivitySource ActivitySource = new("Orleans.Grains");
+
+// In your grain method, create a span
+public Task MyGrainMethod()
+{
+    using var activity = ActivitySource.StartActivity("MyGrain.MyMethod", ActivityKind.Server);
+    activity?.SetTag("grain.type", nameof(MyGrain));
+    activity?.SetTag("grain.key", this.GetPrimaryKey().ToString());
+    
+    // Your grain logic here
+    
+    return Task.CompletedTask;
+}
+```
+
+**Best Practices:**
+- Use the console exporter during local development for immediate feedback
+- Configure OTLP exporter for production environments with proper observability backends
+- Add custom tags to Activities to capture grain-specific context (grain type, key, operation)
+- Use ActivitySource.StartActivity to create spans for important grain operations
+- Leverage distributed tracing to debug performance issues across grain boundaries
+
+**Troubleshooting:**
+- If traces aren't appearing, verify the OTLP endpoint is accessible
+- Check console output for OpenTelemetry initialization messages
+- Ensure the OpenTelemetry Collector or backend (Jaeger/Tempo) is properly configured
+- Review environment variable settings in your deployment configuration
+
 <details>
 <summary>
 Using the nightly build packages in your project
