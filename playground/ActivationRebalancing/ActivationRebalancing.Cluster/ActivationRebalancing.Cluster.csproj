@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.StackExchange.Redis" />
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.HealthChecks" Version="8.0.11" />
   </ItemGroup>
 
   <ItemGroup>

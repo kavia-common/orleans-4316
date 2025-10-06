@@ -209,6 +209,76 @@ Notes:
 - Adjust the Dockerfile to point to a different host project if desired (for example, another playground host).
 - No cloud provider configuration is required for this setup.
 
+### Health Check Endpoints
+
+Orleans hosts include ASP.NET Core health check endpoints for container orchestration (Kubernetes, Docker, etc.):
+
+**Endpoints:**
+- `/health/live` - Liveness probe: Basic check to verify the process is running
+- `/health/ready` - Readiness probe: Comprehensive check including Orleans silo cluster membership status
+
+**Usage Examples:**
+
+Check liveness (minimal check):
+```bash
+curl http://localhost:8080/health/live
+```
+
+Check readiness (includes Orleans silo status):
+```bash
+curl http://localhost:8080/health/ready
+```
+
+**Docker Compose Integration:**
+
+You can configure health checks in docker-compose.yml:
+```yaml
+services:
+  orleans-silo:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+```
+
+**Kubernetes Integration:**
+
+Example Kubernetes deployment with health probes:
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orleans-silo
+spec:
+  template:
+    spec:
+      containers:
+      - name: orleans-silo
+        image: orleans-silo:latest
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+```
+
+**Health Check Details:**
+- **Liveness probe** verifies the service process is running and responsive
+- **Readiness probe** checks Orleans silo membership status (Active status in cluster)
+- Failed readiness checks prevent traffic routing to the silo until it's fully joined the cluster
+- Failed liveness checks trigger container restarts in orchestration platforms
+
 <details>
 <summary>
 Using the nightly build packages in your project
