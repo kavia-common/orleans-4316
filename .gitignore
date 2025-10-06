@@ -220,3 +220,4 @@ src/SetupTestScriptOutput.txt
 
 # code coverage
 *.cobertura.xml
+.file_activity_report.json
