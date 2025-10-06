@@ -4,6 +4,11 @@ using Microsoft.Extensions.Logging;
 using Orleans.Configuration;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Ensure Kestrel binds to container network interface for health/dashboard if ASPNETCORE_URLS is not honored elsewhere.
+var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "http://0.0.0.0:8080";
+builder.WebHost.UseUrls(urls);
+
 builder.AddKeyedRedisClient("orleans-redis");
 builder.Logging.AddFilter("Orleans.Runtime.Placement.Rebalancing", LogLevel.Trace);
 #pragma warning disable ORLEANSEXP002

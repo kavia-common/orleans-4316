@@ -1,0 +1,60 @@
+version: "3.9"
+
+# Docker Compose for local Orleans development
+# Services:
+# - orleans-silo: A simple Orleans silo host built from this repository (ActivationRebalancing.Cluster)
+# Ports:
+#   11111: Silo-to-silo communication (internal cluster traffic)
+#   30000: Client gateway (Orleans client connections)
+#   8080:  HTTP endpoints (health, metrics, and Orleans dashboard if enabled in the app)
+# Environment variables (override with: export VAR=... or use an .env file):
+#   ASPNETCORE_URLS=http://0.0.0.0:8080
+#   ORLEANS_CLUSTER_ID=dev
+#   ORLEANS_SERVICE_ID=dev-service
+#   ORLEANS_SILO_PORT=11111
+#   ORLEANS_GATEWAY_PORT=30000
+#   ORLEANS_DASHBOARD_PORT=8080
+# Notes:
+# - This compose file uses development clustering defaults (no external dependencies).
+# - If your host code supports the Orleans Dashboard, it will be accessible on http://localhost:8080
+# - Health endpoints should also be exposed on :8080 if configured in the host.
+
+services:
+  orleans-silo:
+    container_name: orleans-silo
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: orleans-dev-silo:latest
+    environment:
+      # Ensure Kestrel listens on the container interface for health/dashboard
+      - ASPNETCORE_URLS=${ASPNETCORE_URLS-http://0.0.0.0:8080}
+      # Orleans cluster/service identity
+      - ORLEANS_CLUSTER_ID=${ORLEANS_CLUSTER_ID-dev}
+      - ORLEANS_SERVICE_ID=${ORLEANS_SERVICE_ID-dev-service}
+      # Orleans networking ports
+      - ORLEANS_SILO_PORT=${ORLEANS_SILO_PORT-11111}
+      - ORLEANS_GATEWAY_PORT=${ORLEANS_GATEWAY_PORT-30000}
+      # Optional: Orleans Dashboard port if enabled by the app
+      - ORLEANS_DASHBOARD_PORT=${ORLEANS_DASHBOARD_PORT-8080}
+    ports:
+      - "11111:11111"   # Silo-to-silo
+      - "30000:30000"   # Client gateway
+      - "8080:8080"     # HTTP: health and dashboard (if enabled)
+    # In dev, a single silo is sufficient; add more replicas if needed.
+    # deploy:
+    #   replicas: 1
+    #   restart_policy:
+    #     condition: on-failure
+    # command: [] # use default entrypoint
+    # volumes: [] # add bindings if you want to live-reload or mount configs
+
+# Usage:
+# - Start:   docker compose up -d
+# - Logs:    docker compose logs -f
+# - Stop:    docker compose down
+# - Rebuild: docker compose build --no-cache && docker compose up -d
+
+# For advanced setups:
+# - If you want a separate Orleans Dashboard container, ensure the app exposes metrics endpoints and use the official dashboard image,
+#   or host the dashboard in-process and keep this compose as-is.

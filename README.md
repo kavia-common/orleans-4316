@@ -176,6 +176,39 @@ The latest stable, production-quality release is located [here](https://github.c
 
 Nightly builds are published to [a NuGet feed](https://pkgs.dev.azure.com/dnceng/public/_packaging/orleans-nightly/nuget/v3/index.json). These builds pass all functional tests, but are not thoroughly tested as the stable builds or pre-release builds published to NuGet.
 
+## Running with Docker (Local Development)
+
+This repository includes a Dockerfile and docker-compose.yml to run a minimal Orleans silo for local development without external dependencies.
+
+Quickstart:
+- Build and start:
+  - docker compose up -d
+- View logs:
+  - docker compose logs -f
+- Stop and remove:
+  - docker compose down
+
+Ports:
+- 11111: Silo-to-silo port
+- 30000: Orleans client gateway
+- 8080: HTTP endpoints (health and Orleans dashboard if enabled by the host)
+
+Environment variables (override as needed):
+- ASPNETCORE_URLS: default http://0.0.0.0:8080
+- ORLEANS_CLUSTER_ID: default dev
+- ORLEANS_SERVICE_ID: default dev-service
+- ORLEANS_SILO_PORT: default 11111
+- ORLEANS_GATEWAY_PORT: default 30000
+- ORLEANS_DASHBOARD_PORT: default 8080
+
+If the host project has Orleans Dashboard enabled and mapped to the Kestrel endpoint, access it at:
+- http://localhost:8080
+
+Notes:
+- The compose uses the ActivationRebalancing.Cluster sample host to run a simple silo for development.
+- Adjust the Dockerfile to point to a different host project if desired (for example, another playground host).
+- No cloud provider configuration is required for this setup.
+
 <details>
 <summary>
 Using the nightly build packages in your project
