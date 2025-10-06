@@ -27,7 +27,18 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="coverlet.msbuild" />
     <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
   </ItemGroup>
+
+  <!-- Code Coverage Configuration -->
+  <PropertyGroup>
+    <CollectCoverage>true</CollectCoverage>
+    <CoverletOutputFormat>json,cobertura,lcov,opencover</CoverletOutputFormat>
+    <CoverletOutput>$(MSBuildProjectDirectory)/../TestResults/</CoverletOutput>
+    <Exclude>[*.Tests]*,[*]*.Generated.*</Exclude>
+    <ExcludeByAttribute>Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute</ExcludeByAttribute>
+    <IncludeTestAssembly>false</IncludeTestAssembly>
+  </PropertyGroup>
 
 </Project>
